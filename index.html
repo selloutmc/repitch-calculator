@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repitch Calculator</title>
+<meta name="description" content="BPM and key calculator for DJs using Ableton Re-Pitch mode. Enter your BPM and key to see results across ±6 semitones with Camelot wheel.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #f2f1ed;
+  --surface:  #ffffff;
+  --surface2: #eae9e4;
+  --border:   rgba(0,0,0,0.09);
+  --border2:  rgba(0,0,0,0.05);
+  --text:     #1a1a18;
+  --text2:    #68675f;
+  --text3:    #99988f;
+  --radius:   10px;
+  --font:     -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:       #111110;
+    --surface:  #1c1c1a;
+    --surface2: #252523;
+    --border:   rgba(255,255,255,0.08);
+    --border2:  rgba(255,255,255,0.04);
+    --text:     #e4e2d8;
+    --text2:    #99988f;
+    --text3:    #68675f;
+  }
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+header {
+  padding: 2rem 2rem 1.5rem;
+  border-bottom: 0.5px solid var(--border);
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+header h1 { font-size: 22px; font-weight: 500; }
+header p { font-size: 13px; color: var(--text2); }
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  gap: 2rem;
+  padding: 2rem;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+@media (max-width: 740px) {
+  main { grid-template-columns: 1fr; padding: 1.25rem; gap: 1.5rem; }
+}
+
+/* ── Inputs ── */
+.inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+
+label {
+  display: block;
+  font-size: 11px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 5px;
+}
+
+input[type="number"], select {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 15px;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+input[type="number"]:focus, select:focus {
+  border-color: rgba(120,100,220,0.5);
+  box-shadow: 0 0 0 3px rgba(120,100,220,0.1);
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L0 2h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+
+/* ── Legend ── */
+.legend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 0.75rem; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Column headers ── */
+.col-heads {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr 60px;
+  gap: 8px;
+  padding: 0 14px 0 18px;
+  margin-bottom: 4px;
+}
+.col-heads span { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ── Result rows ── */
+.results { display: flex; flex-direction: column; gap: 4px; }
+
+.result-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr 60px;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  border-left: 4px solid transparent;
+  transition: opacity 0.1s;
+}
+
+.semi       { font-size: 12px; font-weight: 500; }
+.bpm-val    { font-size: 18px; font-weight: 500; }
+.key-val    { font-size: 13px; }
+.cam-badge  { font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 99px; text-align: center; font-family: monospace; }
+
+/* Row themes — light */
+.r0 { background: var(--surface2); border-left-color: var(--border); }
+.r0 .semi, .r0 .key-val { color: var(--text2); }
+.r0 .bpm-val { color: var(--text); }
+.r0 .cam-badge { background: var(--surface); color: var(--text); border: 0.5px solid var(--border); }
+
+.r1 { background: #d4f7c5; border-left-color: #3a9e1f; }
+.r1 .semi, .r1 .bpm-val { color: #1a5c09; }
+.r1 .key-val { color: #256e0d; }
+.r1 .cam-badge { background: #3a9e1f; color: #e8fde0; }
+
+.r2 { background: #fff5a0; border-left-color: #c9a800; }
+.r2 .semi, .r2 .bpm-val { color: #6b5700; }
+.r2 .key-val { color: #7a6300; }
+.r2 .cam-badge { background: #c9a800; color: #fff9cc; }
+
+.r3 { background: #fcd5d5; border-left-color: #cc2222; }
+.r3 .semi, .r3 .bpm-val { color: #7a0d0d; }
+.r3 .key-val { color: #8f1111; }
+.r3 .cam-badge { background: #cc2222; color: #fdeaea; }
+
+.r4 { background: #cce0f8; border-left-color: #1a65c0; }
+.r4 .semi, .r4 .bpm-val { color: #0b3672; }
+.r4 .key-val { color: #1045a0; }
+.r4 .cam-badge { background: #1a65c0; color: #e0eefb; }
+
+/* Row themes — dark */
+@media (prefers-color-scheme: dark) {
+  .r0 { background: #252523; border-left-color: #3a3a38; }
+  .r0 .semi, .r0 .key-val { color: var(--text2); }
+  .r0 .bpm-val { color: var(--text); }
+  .r0 .cam-badge { background: #333331; color: var(--text); border: 0.5px solid var(--border); }
+
+  .r1 { background: #0f3308; border-left-color: #4ec42a; }
+  .r1 .semi, .r1 .bpm-val { color: #c8f7a8; }
+  .r1 .key-val { color: #8fe067; }
+  .r1 .cam-badge { background: #4ec42a; color: #0a2405; }
+
+  .r2 { background: #3d3000; border-left-color: #f0cc00; }
+  .r2 .semi, .r2 .bpm-val { color: #fff099; }
+  .r2 .key-val { color: #f0cc00; }
+  .r2 .cam-badge { background: #f0cc00; color: #2a2000; }
+
+  .r3 { background: #3d0808; border-left-color: #ee3333; }
+  .r3 .semi, .r3 .bpm-val { color: #fcbbbb; }
+  .r3 .key-val { color: #f07070; }
+  .r3 .cam-badge { background: #ee3333; color: #1f0000; }
+
+  .r4 { background: #08203d; border-left-color: #3b8de8; }
+  .r4 .semi, .r4 .bpm-val { color: #bcd9fa; }
+  .r4 .key-val { color: #6aaaf0; }
+  .r4 .cam-badge { background: #3b8de8; color: #04111e; }
+}
+
+/* ── Wheel section ── */
+.wheel-wrap { display: flex; flex-direction: column; gap: 0.75rem; }
+.wheel-wrap h2 { font-size: 16px; font-weight: 500; }
+.wheel-hint { font-size: 12px; color: var(--text2); }
+
+#wheel { width: 100%; height: auto; display: block; }
+
+.wheel-legend { display: flex; gap: 16px; font-size: 11px; color: var(--text2); flex-wrap: wrap; }
+.wheel-legend span { display: flex; align-items: center; gap: 5px; }
+
+.ring-swatch {
+  display: inline-block;
+  width: 26px;
+  height: 11px;
+  border-radius: 2px;
+  border: 0.5px solid rgba(0,0,0,0.15);
+}
+
+/* ── Footer ── */
+footer {
+  text-align: center;
+  padding: 2rem;
+  font-size: 12px;
+  color: var(--text3);
+  border-top: 0.5px solid var(--border);
+  margin-top: 1rem;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Repitch Calculator</h1>
+  <p>BPM &amp; key results for Ableton Re-Pitch mode — click the wheel to select a key</p>
+</header>
+
+<main>
+  <!-- Calculator -->
+  <section>
+    <div class="inputs">
+      <div>
+        <label for="bpm">BPM</label>
+        <input type="number" id="bpm" value="120" min="40" max="220" step="0.1">
+      </div>
+      <div>
+        <label for="key">Key (Camelot)</label>
+        <select id="key"></select>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#4ec42a;"></div>±1 st — prime sweet spot</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f0cc00;"></div>±2 st — sweet spot</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ee3333;"></div>±3 st — use sparingly</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#3b8de8;"></div>±4–6 st — risky territory</div>
+    </div>
+
+    <div class="col-heads">
+      <span>Shift</span>
+      <span>New BPM</span>
+      <span>Key</span>
+      <span>Camelot</span>
+    </div>
+
+    <div class="results" id="results"></div>
+  </section>
+
+  <!-- Camelot wheel -->
+  <section class="wheel-wrap">
+    <h2>Camelot wheel</h2>
+    <p class="wheel-hint">Click any segment to select that key</p>
+    <svg id="wheel" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Interactive Camelot wheel — click a segment to select a key"></svg>
+    <div class="wheel-legend">
+      <span><span class="ring-swatch" style="background:linear-gradient(90deg,#e54545,#3548c8);"></span>Outer ring = major (B keys)</span>
+      <span><span class="ring-swatch" style="background:linear-gradient(90deg,rgba(229,69,69,0.45),rgba(53,72,200,0.45));"></span>Inner ring = minor (A keys)</span>
+    </div>
+  </section>
+</main>
+
+<footer>Repitch Calculator &mdash; built for harmonic mixing with Ableton Re-Pitch mode</footer>
+
+<script>
+const camelotData = [
+  { num:1,  letter:'B', noteShort:'C',    full:'C major'    },
+  { num:2,  letter:'B', noteShort:'G',    full:'G major'    },
+  { num:3,  letter:'B', noteShort:'D',    full:'D major'    },
+  { num:4,  letter:'B', noteShort:'A',    full:'A major'    },
+  { num:5,  letter:'B', noteShort:'E',    full:'E major'    },
+  { num:6,  letter:'B', noteShort:'B',    full:'B major'    },
+  { num:7,  letter:'B', noteShort:'F♯',   full:'F♯ major'   },
+  { num:8,  letter:'B', noteShort:'D♭',   full:'D♭ major'   },
+  { num:9,  letter:'B', noteShort:'A♭',   full:'A♭ major'   },
+  { num:10, letter:'B', noteShort:'E♭',   full:'E♭ major'   },
+  { num:11, letter:'B', noteShort:'B♭',   full:'B♭ major'   },
+  { num:12, letter:'B', noteShort:'F',    full:'F major'    },
+  { num:1,  letter:'A', noteShort:'Am',   full:'A minor'    },
+  { num:2,  letter:'A', noteShort:'Em',   full:'E minor'    },
+  { num:3,  letter:'A', noteShort:'Bm',   full:'B minor'    },
+  { num:4,  letter:'A', noteShort:'F♯m',  full:'F♯ minor'   },
+  { num:5,  letter:'A', noteShort:'C♯m',  full:'C♯ minor'   },
+  { num:6,  letter:'A', noteShort:'G♯m',  full:'G♯ minor'   },
+  { num:7,  letter:'A', noteShort:'D♯m',  full:'D♯ minor'   },
+  { num:8,  letter:'A', noteShort:'B♭m',  full:'B♭ minor'   },
+  { num:9,  letter:'A', noteShort:'Fm',   full:'F minor'    },
+  { num:10, letter:'A', noteShort:'Cm',   full:'C minor'    },
+  { num:11, letter:'A', noteShort:'Gm',   full:'G minor'    },
+  { num:12, letter:'A', noteShort:'Dm',   full:'D minor'    },
+];
+
+// One color per Camelot position (1–12)
+const POS_COLORS = [
+  '#e54545', // 1
+  '#e0681e', // 2
+  '#cc8b00', // 3
+  '#a8a800', // 4
+  '#58aa0e', // 5
+  '#14a052', // 6
+  '#0ea092', // 7
+  '#1870d0', // 8
+  '#3548c8', // 9
+  '#7030c0', // 10
+  '#a828a8', // 11
+  '#c02868', // 12
+];
+
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+// ── Populate select ──────────────────────────────────────────
+const keySelect = document.getElementById('key');
+camelotData.forEach((k, i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = `${k.num}${k.letter} — ${k.full}`;
+  keySelect.appendChild(opt);
+});
+keySelect.value = 12; // default: 1A (A minor)
+
+// ── Camelot helpers ──────────────────────────────────────────
+function shiftedKey(idx, semitones) {
+  const k = camelotData[idx];
+  const base = k.letter === 'B' ? 0 : 12;
+  const local = ((k.num - 1 + semitones * 7) % 12 + 12) % 12;
+  return camelotData[base + local];
+}
+
+function shiftedIdx(idx, semitones) {
+  const k = camelotData[idx];
+  const base = k.letter === 'B' ? 0 : 12;
+  const local = ((k.num - 1 + semitones * 7) % 12 + 12) % 12;
+  return base + local;
+}
+
+function rowClass(s) {
+  const a = Math.abs(s);
+  if (a === 0) return 'r0';
+  if (a === 1) return 'r1';
+  if (a === 2) return 'r2';
+  if (a === 3) return 'r3';
+  return 'r4';
+}
+
+// ── Render calculator rows ───────────────────────────────────
+function renderCalc() {
+  const bpm = parseFloat(document.getElementById('bpm').value) || 120;
+  const idx = parseInt(keySelect.value);
+  const container = document.getElementById('results');
+  container.innerHTML = '';
+
+  [-6,-5,-4,-3,-2,-1,0,1,2,3,4,5,6].forEach(s => {
+    const newBpm = bpm * Math.pow(2, s / 12);
+    const key    = shiftedKey(idx, s);
+    const label  = s === 0 ? '± 0' : (s > 0 ? `+ ${s}` : `\u2212 ${Math.abs(s)}`);
+
+    const row = document.createElement('div');
+    row.className = `result-row ${rowClass(s)}`;
+    row.innerHTML =
+      `<span class="semi">${label} st</span>` +
+      `<span class="bpm-val">${newBpm.toFixed(1)}</span>` +
+      `<span class="key-val">${key.full}</span>` +
+      `<span class="cam-badge">${key.num}${key.letter}</span>`;
+    container.appendChild(row);
+  });
+
+  updateWheelHighlight();
+}
+
+// ── SVG wheel ────────────────────────────────────────────────
+const SVG  = document.getElementById('wheel');
+const NS   = 'http://www.w3.org/2000/svg';
+const CX = 200, CY = 200, R_OUT = 186, R_MID = 116, R_IN = 52;
+const GAP  = 0.028; // radians gap between segments
+
+const segEls = {}; // idx → path element
+
+function pt(r, angle) {
+  return { x: CX + r * Math.cos(angle), y: CY + r * Math.sin(angle) };
+}
+
+function arcPath(r1, r2, a1, a2) {
+  a1 += GAP; a2 -= GAP;
+  const p1 = pt(r2, a1), p2 = pt(r2, a2);
+  const p3 = pt(r1, a2), p4 = pt(r1, a1);
+  const f = (x, y) => `${x.toFixed(2)} ${y.toFixed(2)}`;
+  return [
+    `M ${f(p1.x,p1.y)}`,
+    `A ${r2} ${r2} 0 0 1 ${f(p2.x,p2.y)}`,
+    `L ${f(p3.x,p3.y)}`,
+    `A ${r1} ${r1} 0 0 0 ${f(p4.x,p4.y)}`,
+    'Z'
+  ].join(' ');
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+
+function svgText(x, y, txt, size, fill, weight, family) {
+  const el = svgEl('text', {
+    x, y,
+    'text-anchor': 'middle',
+    'dominant-baseline': 'middle',
+    'font-size': size,
+    'font-weight': weight || 400,
+    'font-family': family || '-apple-system,sans-serif',
+    fill,
+    'pointer-events': 'none'
+  });
+  el.textContent = txt;
+  return el;
+}
+
+function blendWithWhite(hex, t) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.round(r+(255-r)*t)},${Math.round(g+(255-g)*t)},${Math.round(b+(255-b)*t)})`;
+}
+
+function blendWithBlack(hex, t) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.round(r*(1-t))},${Math.round(g*(1-t))},${Math.round(b*(1-t))})`;
+}
+
+function buildWheel() {
+  SVG.innerHTML = '';
+  const gapColor = isDark ? '#111110' : '#f2f1ed';
+
+  for (let i = 0; i < 12; i++) {
+    const pos   = i + 1;
+    const color = POS_COLORS[i];
+    const a1    = (-90 + i * 30) * Math.PI / 180;
+    const a2    = (-90 + (i+1) * 30) * Math.PI / 180;
+    const midA  = (a1 + a2) / 2;
+
+    // ─ B segment (outer / major) ─────────────────
+    const bIdx   = i;
+    const bFill  = isDark ? blendWithBlack(color, 0.08) : blendWithWhite(color, 0.12);
+    const bPath  = svgEl('path', {
+      d: arcPath(R_MID, R_OUT, a1, a2),
+      fill: bFill,
+      stroke: gapColor,
+      'stroke-width': '1.5',
+      'data-idx': bIdx,
+      style: 'cursor:pointer; transition:opacity 0.12s;'
+    });
+    bPath.addEventListener('click', () => selectKey(bIdx));
+    SVG.appendChild(bPath);
+    segEls[bIdx] = bPath;
+
+    // B labels
+    const bR   = (R_MID + R_OUT) / 2;
+    const bPos = pt(bR, midA);
+    SVG.appendChild(svgText(bPos.x, bPos.y - 7, `${pos}B`, 11, 'rgba(255,255,255,0.95)', 700, 'monospace'));
+    SVG.appendChild(svgText(bPos.x, bPos.y + 7, camelotData[i].noteShort, 9, 'rgba(255,255,255,0.78)'));
+
+    // ─ A segment (inner / minor) ─────────────────
+    const aIdx   = i + 12;
+    const aFill  = isDark ? blendWithBlack(color, 0.48) : blendWithWhite(color, 0.52);
+    const aPath  = svgEl('path', {
+      d: arcPath(R_IN, R_MID, a1, a2),
+      fill: aFill,
+      stroke: gapColor,
+      'stroke-width': '1.5',
+      'data-idx': aIdx,
+      style: 'cursor:pointer; transition:opacity 0.12s;'
+    });
+    aPath.addEventListener('click', () => selectKey(aIdx));
+    SVG.appendChild(aPath);
+    segEls[aIdx] = aPath;
+
+    // A labels
+    const aR   = (R_IN + R_MID) / 2;
+    const aPos = pt(aR, midA);
+    const aTextFill = isDark ? 'rgba(255,255,255,0.88)' : 'rgba(0,0,0,0.7)';
+    const aNoteFill = isDark ? 'rgba(255,255,255,0.58)' : 'rgba(0,0,0,0.48)';
+    SVG.appendChild(svgText(aPos.x, aPos.y - 6, `${pos}A`, 10, aTextFill, 700, 'monospace'));
+    SVG.appendChild(svgText(aPos.x, aPos.y + 6, camelotData[i+12].noteShort, 8, aNoteFill));
+  }
+
+  // Center circle
+  const circle = svgEl('circle', {
+    cx: CX, cy: CY, r: R_IN - 2,
+    fill: isDark ? '#1c1c1a' : '#f2f1ed'
+  });
+  SVG.appendChild(circle);
+  SVG.appendChild(svgText(CX, CY - 6, 'CAMELOT', 9, isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.2)', 400, 'monospace'));
+  SVG.appendChild(svgText(CX, CY + 7, 'WHEEL', 9, isDark ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.2)', 400, 'monospace'));
+}
+
+function selectKey(idx) {
+  keySelect.value = idx;
+  renderCalc();
+}
+
+function updateWheelHighlight() {
+  const sel = parseInt(keySelect.value);
+  const gapColor = isDark ? '#111110' : '#f2f1ed';
+  for (const [idxStr, el] of Object.entries(segEls)) {
+    const idx = parseInt(idxStr);
+    if (idx === sel) {
+      el.setAttribute('stroke', '#ffffff');
+      el.setAttribute('stroke-width', '3');
+      el.style.opacity = '1';
+      el.style.filter  = isDark ? 'brightness(1.25)' : 'brightness(1.1)';
+    } else {
+      el.setAttribute('stroke', gapColor);
+      el.setAttribute('stroke-width', '1.5');
+      el.style.opacity = '0.88';
+      el.style.filter  = 'none';
+    }
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────
+buildWheel();
+renderCalc();
+
+document.getElementById('bpm').addEventListener('input', renderCalc);
+keySelect.addEventListener('change', renderCalc);
+</script>
+</body>
+</html>
